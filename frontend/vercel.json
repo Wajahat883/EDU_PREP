@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "framework": "nextjs",
+  "public": true,
+  "nodeVersion": "20.x",
+  "env": [
+    {
+      "key": "NEXT_PUBLIC_API_URL",
+      "value": "https://api.eduprep.com",
+      "description": "Backend API URL (update after backend deployment)"
+    },
+    {
+      "key": "NEXT_PUBLIC_CONTENT_URL",
+      "value": "https://content-api.eduprep.com",
+      "description": "Content service API URL"
+    },
+    {
+      "key": "NEXTAUTH_SECRET",
+      "value": "",
+      "description": "NextAuth secret key (generate on Vercel)"
+    },
+    {
+      "key": "NEXTAUTH_URL",
+      "value": "https://eduprep.vercel.app",
+      "description": "NextAuth callback URL"
+    }
+  ],
+  "buildOutputDirectory": ".next",
+  "redirects": [],
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://api.eduprep.com/:path*"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/:path*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600, s-maxage=3600"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        }
+      ]
+    }
+  ]
+}

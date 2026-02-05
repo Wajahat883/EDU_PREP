@@ -1,0 +1,87 @@
+import { useQuery, useMutation, useQueryClient } from "react-query";
+import axios from "axios";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
+// Create axios instance with auth header
+export const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+});
+
+// Add token to requests
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem("accessToken");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// API hooks for Authentication
+export const useAuth = () => {
+  return useMutation((credentials: { email: string; password: string }) =>
+    apiClient.post("/api/auth/login", credentials),
+  );
+};
+
+export const useRegister = () => {
+  return useMutation((data: any) => apiClient.post("/api/auth/register", data));
+};
+
+export const useCurrentUser = () => {
+  return useQuery("currentUser", () => apiClient.get("/api/auth/me"), {
+    enabled: !!localStorage.getItem("accessToken"),
+  });
+};
+
+// API hooks for Questions
+export const useQuestions = (filters?: any) => {
+  return useQuery(["questions", filters], () =>
+    apiClient.get("/api/questions", { params: filters }),
+  );
+};
+
+export const useQuestion = (questionId: string) => {
+  return useQuery(["question", questionId], () =>
+    apiClient.get(`/api/questions/${questionId}`),
+  );
+};
+
+// API hooks for Tests
+export const useCreateSession = () => {
+  return useMutation((config: any) => apiClient.post("/api/sessions", config));
+};
+
+export const useSubmitAnswer = () => {
+  return useMutation(({ sessionId, ...answer }: any) =>
+    apiClient.post(`/api/sessions/${sessionId}/answer`, answer),
+  );
+};
+
+export const useCompleteSession = () => {
+  return useMutation((sessionId: string) =>
+    apiClient.post(`/api/sessions/${sessionId}/complete`),
+  );
+};
+
+// API hooks for Analytics
+export const useProgressSummary = () => {
+  return useQuery("progressSummary", () =>
+    apiClient.get("/api/progress/summary"),
+  );
+};
+
+export const useProgressTrends = () => {
+  return useQuery("progressTrends", () =>
+    apiClient.get("/api/progress/trends"),
+  );
+};
+
+// API hooks for Payments
+export const usePlans = () => {
+  return useQuery("plans", () => apiClient.get("/api/plans"));
+};
+
+export const useCheckout = () => {
+  return useMutation((data: any) => apiClient.post("/api/checkout", data));
+};
