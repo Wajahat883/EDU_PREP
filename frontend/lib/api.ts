@@ -38,7 +38,9 @@ export const useAuth = () => {
 };
 
 export const useRegister = () => {
-  return useMutation((data: any) => apiClient.post("/api/auth/register", data));
+  return useMutation({
+    mutationFn: (data: any) => apiClient.post("/api/auth/register", data),
+  });
 };
 
 export const useCurrentUser = () => {
@@ -62,19 +64,23 @@ export const useQuestion = (questionId: string) => {
 
 // API hooks for Tests
 export const useCreateSession = () => {
-  return useMutation((config: any) => apiClient.post("/api/sessions", config));
+  return useMutation({
+    mutationFn: (config: any) => apiClient.post("/api/sessions", config),
+  });
 };
 
 export const useSubmitAnswer = () => {
-  return useMutation(({ sessionId, ...answer }: any) =>
-    apiClient.post(`/api/sessions/${sessionId}/answer`, answer),
-  );
+  return useMutation({
+    mutationFn: ({ sessionId, ...answer }: any) =>
+      apiClient.post(`/api/sessions/${sessionId}/answer`, answer),
+  });
 };
 
 export const useCompleteSession = () => {
-  return useMutation((sessionId: string) =>
-    apiClient.post(`/api/sessions/${sessionId}/complete`),
-  );
+  return useMutation({
+    mutationFn: (sessionId: string) =>
+      apiClient.post(`/api/sessions/${sessionId}/complete`),
+  });
 };
 
 // API hooks for Analytics
@@ -96,5 +102,8 @@ export const usePlans = () => {
 };
 
 export const useCheckout = () => {
-  return useMutation((data: any) => apiClient.post("/api/checkout", data));
+  return useMutation({
+    mutationFn: (data: any) => apiClient.post("/api/checkout", data),
+  });
+};
 };
