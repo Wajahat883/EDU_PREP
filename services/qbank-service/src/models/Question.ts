@@ -3,6 +3,10 @@ import { Schema, model, Document } from "mongoose";
 export interface IQuestion extends Document {
   examTypeId: string;
   subjectId: string;
+  subject?: string; // For CSV export compatibility
+  topic?: string; // For CSV export compatibility
+  text?: string; // Alias for stemText
+  type?: string; // Alias for questionType
   questionType: "single" | "multiple" | "drag_drop" | "hotspot";
   stemText: string;
   stemMedia?: {
@@ -15,6 +19,7 @@ export interface IQuestion extends Document {
     isCorrect: boolean;
   }>;
   explanationText: string;
+  explanation?: string; // For CSV export compatibility
   explanationMedia?: {
     images?: string[];
     links?: string[];
@@ -36,8 +41,28 @@ export interface IQuestion extends Document {
   tags: string[];
   isActive: boolean;
   createdBy: string;
+  updatedBy?: string;
   reviewedBy?: string;
   version: number;
+  status?: string; // For CSV export compatibility
+  correctAnswer?: string; // For CSV export compatibility
+  revisions?: Array<{
+    timestamp?: Date;
+    version?: number;
+    content: string;
+    changedBy?: string;
+    createdAt?: Date;
+    createdBy?: string;
+  }>;
+  submittedAt?: Date; // For approval workflow
+  submittedBy?: string;
+  approvedAt?: Date;
+  approvedBy?: string;
+  approvalNotes?: string;
+  rejectedAt?: Date;
+  rejectedBy?: string;
+  rejectionReason?: string;
+  deletedAt?: Date; // Soft delete
   statistics?: {
     correctAttempts: number;
     totalAttempts: number;
@@ -140,4 +165,5 @@ questionSchema.index({ difficulty: 1 });
 questionSchema.index({ tags: 1 });
 questionSchema.index({ isActive: 1 });
 
-export default model<IQuestion>("Question", questionSchema);
+export const Question = model<IQuestion>("Question", questionSchema);
+export default Question;

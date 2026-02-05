@@ -9,10 +9,10 @@
  * - Analytics and reporting
  */
 
-import express, { Router, Request, Response } from "express";
+import express, { Router, Response } from "express";
 import { questionManagerService } from "../services/questionManagerService";
 import { testManagerService } from "../services/testManagerService";
-import { authenticate, authorize } from "../middleware/auth";
+import { authenticate, authorize, AuthRequest } from "../middleware/auth";
 
 const router: Router = express.Router();
 
@@ -25,7 +25,7 @@ router.use(authorize("admin"));
 /**
  * GET /api/admin/questions - List all questions with filters
  */
-router.get("/questions", async (req: Request, res: Response) => {
+router.get("/questions", async (req: AuthRequest, res: Response) => {
   try {
     const {
       subject,
@@ -69,7 +69,7 @@ router.get("/questions", async (req: Request, res: Response) => {
 /**
  * POST /api/admin/questions - Create new question
  */
-router.post("/questions", async (req: Request, res: Response) => {
+router.post("/questions", async (req: AuthRequest, res: Response) => {
   try {
     const question = await questionManagerService.createQuestion(
       req.body,
@@ -89,7 +89,7 @@ router.post("/questions", async (req: Request, res: Response) => {
 /**
  * GET /api/admin/questions/:id - Get single question
  */
-router.get("/questions/:id", async (req: Request, res: Response) => {
+router.get("/questions/:id", async (req: AuthRequest, res: Response) => {
   try {
     const question = await questionManagerService.getQuestion(req.params.id);
 
@@ -108,7 +108,7 @@ router.get("/questions/:id", async (req: Request, res: Response) => {
 /**
  * PUT /api/admin/questions/:id - Update question
  */
-router.put("/questions/:id", async (req: Request, res: Response) => {
+router.put("/questions/:id", async (req: AuthRequest, res: Response) => {
   try {
     const question = await questionManagerService.updateQuestion(
       req.params.id,
@@ -129,7 +129,7 @@ router.put("/questions/:id", async (req: Request, res: Response) => {
 /**
  * DELETE /api/admin/questions/:id - Delete question
  */
-router.delete("/questions/:id", async (req: Request, res: Response) => {
+router.delete("/questions/:id", async (req: AuthRequest, res: Response) => {
   try {
     await questionManagerService.deleteQuestion(req.params.id, req.user._id);
 
@@ -145,7 +145,7 @@ router.delete("/questions/:id", async (req: Request, res: Response) => {
 /**
  * POST /api/admin/questions/:id/submit - Submit question for review
  */
-router.post("/questions/:id/submit", async (req: Request, res: Response) => {
+router.post("/questions/:id/submit", async (req: AuthRequest, res: Response) => {
   try {
     const question = await questionManagerService.submitForReview(
       req.params.id,
@@ -165,7 +165,7 @@ router.post("/questions/:id/submit", async (req: Request, res: Response) => {
 /**
  * POST /api/admin/questions/:id/approve - Approve question
  */
-router.post("/questions/:id/approve", async (req: Request, res: Response) => {
+router.post("/questions/:id/approve", async (req: AuthRequest, res: Response) => {
   try {
     const { notes } = req.body;
     const question = await questionManagerService.approveQuestion(
@@ -187,7 +187,7 @@ router.post("/questions/:id/approve", async (req: Request, res: Response) => {
 /**
  * POST /api/admin/questions/:id/reject - Reject question
  */
-router.post("/questions/:id/reject", async (req: Request, res: Response) => {
+router.post("/questions/:id/reject", async (req: AuthRequest, res: Response) => {
   try {
     const { reason } = req.body;
     if (!reason) {
@@ -216,7 +216,7 @@ router.post("/questions/:id/reject", async (req: Request, res: Response) => {
 /**
  * GET /api/admin/questions/:id/history - Get question revision history
  */
-router.get("/questions/:id/history", async (req: Request, res: Response) => {
+router.get("/questions/:id/history", async (req: AuthRequest, res: Response) => {
   try {
     const history = await questionManagerService.getRevisionHistory(
       req.params.id,
@@ -234,7 +234,7 @@ router.get("/questions/:id/history", async (req: Request, res: Response) => {
 /**
  * POST /api/admin/questions/:id/restore - Restore question to revision
  */
-router.post("/questions/:id/restore", async (req: Request, res: Response) => {
+router.post("/questions/:id/restore", async (req: AuthRequest, res: Response) => {
   try {
     const { revisionVersion } = req.body;
     if (!revisionVersion) {
@@ -263,7 +263,7 @@ router.post("/questions/:id/restore", async (req: Request, res: Response) => {
 /**
  * POST /api/admin/questions/import - Bulk import questions from CSV
  */
-router.post("/questions/bulk/import", async (req: Request, res: Response) => {
+router.post("/questions/bulk/import", async (req: AuthRequest, res: Response) => {
   try {
     const { csvData } = req.body;
     if (!csvData) {
@@ -290,7 +290,7 @@ router.post("/questions/bulk/import", async (req: Request, res: Response) => {
 /**
  * GET /api/admin/questions/export - Export questions to CSV
  */
-router.get("/questions/bulk/export", async (req: Request, res: Response) => {
+router.get("/questions/bulk/export", async (req: AuthRequest, res: Response) => {
   try {
     const { subject, topic, difficulty, status, tags, search } = req.query;
 
@@ -319,7 +319,7 @@ router.get("/questions/bulk/export", async (req: Request, res: Response) => {
 /**
  * GET /api/admin/questions/stats - Get question statistics
  */
-router.get("/questions/stats", async (req: Request, res: Response) => {
+router.get("/questions/stats", async (req: AuthRequest, res: Response) => {
   try {
     const stats = await questionManagerService.getStatistics();
 
@@ -337,7 +337,7 @@ router.get("/questions/stats", async (req: Request, res: Response) => {
 /**
  * GET /api/admin/tests - List all tests
  */
-router.get("/tests", async (req: Request, res: Response) => {
+router.get("/tests", async (req: AuthRequest, res: Response) => {
   try {
     const { subject, status, search, page = 1, limit = 20 } = req.query;
 
@@ -369,7 +369,7 @@ router.get("/tests", async (req: Request, res: Response) => {
 /**
  * POST /api/admin/tests - Create new test
  */
-router.post("/tests", async (req: Request, res: Response) => {
+router.post("/tests", async (req: AuthRequest, res: Response) => {
   try {
     const { config, sections } = req.body;
 
@@ -399,7 +399,7 @@ router.post("/tests", async (req: Request, res: Response) => {
 /**
  * GET /api/admin/tests/:id - Get single test
  */
-router.get("/tests/:id", async (req: Request, res: Response) => {
+router.get("/tests/:id", async (req: AuthRequest, res: Response) => {
   try {
     const test = await testManagerService.getTest(req.params.id);
 
@@ -416,7 +416,7 @@ router.get("/tests/:id", async (req: Request, res: Response) => {
 /**
  * PUT /api/admin/tests/:id - Update test
  */
-router.put("/tests/:id", async (req: Request, res: Response) => {
+router.put("/tests/:id", async (req: AuthRequest, res: Response) => {
   try {
     const test = await testManagerService.updateTest(
       req.params.id,
@@ -437,7 +437,7 @@ router.put("/tests/:id", async (req: Request, res: Response) => {
 /**
  * POST /api/admin/tests/:id/publish - Publish test
  */
-router.post("/tests/:id/publish", async (req: Request, res: Response) => {
+router.post("/tests/:id/publish", async (req: AuthRequest, res: Response) => {
   try {
     const test = await testManagerService.publishTest(
       req.params.id,
@@ -457,7 +457,7 @@ router.post("/tests/:id/publish", async (req: Request, res: Response) => {
 /**
  * POST /api/admin/tests/:id/archive - Archive test
  */
-router.post("/tests/:id/archive", async (req: Request, res: Response) => {
+router.post("/tests/:id/archive", async (req: AuthRequest, res: Response) => {
   try {
     const test = await testManagerService.archiveTest(
       req.params.id,
@@ -477,7 +477,7 @@ router.post("/tests/:id/archive", async (req: Request, res: Response) => {
 /**
  * POST /api/admin/tests/:id/duplicate - Duplicate test
  */
-router.post("/tests/:id/duplicate", async (req: Request, res: Response) => {
+router.post("/tests/:id/duplicate", async (req: AuthRequest, res: Response) => {
   try {
     const test = await testManagerService.duplicateTest(
       req.params.id,
@@ -497,7 +497,7 @@ router.post("/tests/:id/duplicate", async (req: Request, res: Response) => {
 /**
  * DELETE /api/admin/tests/:id - Delete test
  */
-router.delete("/tests/:id", async (req: Request, res: Response) => {
+router.delete("/tests/:id", async (req: AuthRequest, res: Response) => {
   try {
     await testManagerService.deleteTest(req.params.id, req.user._id);
 
@@ -515,7 +515,7 @@ router.delete("/tests/:id", async (req: Request, res: Response) => {
  */
 router.post(
   "/tests/:id/sections/:sectionIndex/add-questions",
-  async (req: Request, res: Response) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const { questionIds } = req.body;
 
@@ -549,7 +549,7 @@ router.post(
  */
 router.post(
   "/tests/:id/sections/:sectionIndex/remove-questions",
-  async (req: Request, res: Response) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const { questionIds } = req.body;
 
@@ -581,7 +581,7 @@ router.post(
 /**
  * GET /api/admin/tests/stats - Get test statistics
  */
-router.get("/tests/stats", async (req: Request, res: Response) => {
+router.get("/tests/stats", async (req: AuthRequest, res: Response) => {
   try {
     // Would typically aggregate stats across all tests
     res.json({
