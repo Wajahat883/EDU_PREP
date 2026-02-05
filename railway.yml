@@ -1,0 +1,103 @@
+services:
+  mongodb:
+    image: mongo:latest
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: eduprep_user
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+      MONGO_INITDB_DATABASE: eduprep
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+  auth-service:
+    build:
+      context: ./services/auth-service
+    environment:
+      MONGODB_URI: mongodb://eduprep_user:${MONGO_PASSWORD}@mongodb:27017/eduprep
+      JWT_SECRET: ${JWT_SECRET}
+      NODE_ENV: production
+      AUTH_SERVICE_PORT: ${PORT:-3001}
+      CORS_ORIGIN: ${FRONTEND_URL}
+    ports:
+      - "3001:3001"
+    depends_on:
+      - mongodb
+
+  content-service:
+    build:
+      context: ./services/content-service
+    environment:
+      MONGODB_URI: mongodb://eduprep_user:${MONGO_PASSWORD}@mongodb:27017/eduprep
+      AUTH_SERVICE_URL: http://auth-service:3001
+      NODE_ENV: production
+      CONTENT_SERVICE_PORT: ${PORT:-3005}
+      CORS_ORIGIN: ${FRONTEND_URL}
+    ports:
+      - "3005:3005"
+    depends_on:
+      - mongodb
+      - auth-service
+
+  test-engine-service:
+    build:
+      context: ./services/test-engine-service
+    environment:
+      MONGODB_URI: mongodb://eduprep_user:${MONGO_PASSWORD}@mongodb:27017/eduprep
+      AUTH_SERVICE_URL: http://auth-service:3001
+      NODE_ENV: production
+      TEST_ENGINE_PORT: ${PORT:-3002}
+      CORS_ORIGIN: ${FRONTEND_URL}
+    ports:
+      - "3002:3002"
+    depends_on:
+      - mongodb
+      - auth-service
+
+  qbank-service:
+    build:
+      context: ./services/qbank-service
+    environment:
+      MONGODB_URI: mongodb://eduprep_user:${MONGO_PASSWORD}@mongodb:27017/eduprep
+      AUTH_SERVICE_URL: http://auth-service:3001
+      NODE_ENV: production
+      QBANK_PORT: ${PORT:-3003}
+      CORS_ORIGIN: ${FRONTEND_URL}
+    ports:
+      - "3003:3003"
+    depends_on:
+      - mongodb
+      - auth-service
+
+  payment-service:
+    build:
+      context: ./services/payment-service
+    environment:
+      MONGODB_URI: mongodb://eduprep_user:${MONGO_PASSWORD}@mongodb:27017/eduprep
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      NODE_ENV: production
+      PAYMENT_SERVICE_PORT: ${PORT:-3004}
+      CORS_ORIGIN: ${FRONTEND_URL}
+    ports:
+      - "3004:3004"
+    depends_on:
+      - mongodb
+
+  analytics-service:
+    build:
+      context: ./services/analytics-service
+    environment:
+      MONGODB_URI: mongodb://eduprep_user:${MONGO_PASSWORD}@mongodb:27017/eduprep
+      AUTH_SERVICE_URL: http://auth-service:3001
+      NODE_ENV: production
+      ANALYTICS_PORT: ${PORT:-3007}
+      CORS_ORIGIN: ${FRONTEND_URL}
+    ports:
+      - "3007:3007"
+    depends_on:
+      - mongodb
+      - auth-service
+
+volumes:
+  mongodb_data:
