@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "projects": [
+    {
+      "name": "eduprep-frontend",
+      "rootDirectory": "frontend",
+      "buildCommand": "npm run build",
+      "outputDirectory": ".next",
+      "framework": "nextjs",
+      "nodeVersion": "20.x",
+      "env": [
+        {
+          "key": "NEXT_PUBLIC_API_URL",
+          "value": "https://api.eduprep.com"
+        },
+        {
+          "key": "NEXTAUTH_SECRET",
+          "value": "@NEXTAUTH_SECRET"
+        },
+        {
+          "key": "NEXTAUTH_URL",
+          "value": "https://eduprep.vercel.app"
+        }
+      ]
+    }
+  ]
+}
