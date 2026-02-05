@@ -19,8 +19,8 @@ export const LoginForm: React.FC = () => {
   const onSubmit = async (data: any) => {
     try {
       const response = await loginMutation.mutateAsync(data);
-      setUser(response.data);
-      setToken(response.data.accessToken);
+      setUser(response.data.data);
+      setToken(response.data.data.accessToken);
       router.push("/dashboard");
     } catch (err: any) {
       setError(err.response?.data?.error || "Login failed");

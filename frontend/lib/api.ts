@@ -3,6 +3,18 @@ import axios from "axios";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
+// Type definitions
+interface LoginResponse {
+  data: {
+    accessToken: string;
+    user: {
+      id: string;
+      email: string;
+      name: string;
+    };
+  };
+}
+
 // Create axios instance with auth header
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -19,9 +31,10 @@ apiClient.interceptors.request.use((config) => {
 
 // API hooks for Authentication
 export const useAuth = () => {
-  return useMutation((credentials: { email: string; password: string }) =>
-    apiClient.post("/api/auth/login", credentials),
-  );
+  return useMutation({
+    mutationFn: (credentials: { email: string; password: string }) =>
+      apiClient.post<LoginResponse>("/api/auth/login", credentials),
+  });
 };
 
 export const useRegister = () => {
