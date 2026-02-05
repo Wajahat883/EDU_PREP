@@ -1,0 +1,59 @@
+{
+  "name": "eduprep-platform",
+  "version": "1.0.0",
+  "description": "UWorld-style exam preparation platform",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "services/*",
+    "shared"
+  ],
+  "scripts": {
+    "install-all": "npm install && npm install --workspaces",
+    "dev": "concurrently \"npm:dev:*\"",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "dev:auth": "npm run dev --workspace=services/auth-service",
+    "dev:qbank": "npm run dev --workspace=services/qbank-service",
+    "dev:test-engine": "npm run dev --workspace=services/test-engine-service",
+    "dev:analytics": "npm run dev --workspace=services/analytics-service",
+    "dev:payment": "npm run dev --workspace=services/payment-service",
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "test:coverage": "npm run test -- --coverage --workspaces",
+    "test:watch": "npm run test -- --watch --workspaces",
+    "lint": "npm run lint --workspaces",
+    "lint:fix": "npm run lint -- --fix --workspaces",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:logs": "docker-compose logs -f",
+    "docker:down": "docker-compose down",
+    "docker:reset": "docker-compose down -v && docker-compose up -d",
+    "migrate": "tsx scripts/migrations.ts",
+    "migrate:rollback": "echo 'Rollback not implemented yet'",
+    "seed": "tsx scripts/seed.ts",
+    "db:backup": "mongodump --uri=$DATABASE_URL --out=./backups/$(date +%Y%m%d_%H%M%S)",
+    "db:restore": "mongorestore --uri=$DATABASE_URL",
+    "health-check": "npx ts-node scripts/health-check.ts",
+    "start": "npm run docker:up && npm run dev"
+  },
+  "dependencies": {
+    "@tailwindcss/aspect-ratio": "^0.4.2",
+    "@tailwindcss/forms": "^0.5.11",
+    "@tailwindcss/typography": "^0.5.19",
+    "class-variance-authority": "^0.7.1",
+    "classnames": "^2.5.1",
+    "clsx": "^2.1.1",
+    "concurrently": "^8.2.0",
+    "tailwindcss-animate": "^1.0.7"
+  },
+  "devDependencies": {
+    "eslint": "^8.50.0",
+    "prettier": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}

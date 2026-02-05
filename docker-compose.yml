@@ -1,0 +1,267 @@
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: eduprep-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-password123}
+      MONGO_INITDB_DATABASE: eduprep
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+      - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js
+    networks:
+      - eduprep-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: eduprep-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - eduprep-network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Elasticsearch (for search)
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.10.0
+    container_name: eduprep-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - eduprep-network
+    healthcheck:
+      test: curl -s http://localhost:9200 >/dev/null || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Auth Service
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: eduprep-auth-service
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3001
+      DATABASE_URL: mongodb://admin:password123@mongodb:27017/eduprep_auth?authSource=admin
+      JWT_SECRET: ${JWT_SECRET:-your-jwt-secret-key-change-in-production}
+      REFRESH_SECRET: ${REFRESH_SECRET:-your-refresh-secret-key-change-in-production}
+      REDIS_URL: redis://redis:6379
+      SERVICE_NAME: auth-service
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - eduprep-network
+    restart: unless-stopped
+
+  # QBank Service
+  qbank-service:
+    build:
+      context: ./services/qbank-service
+      dockerfile: Dockerfile
+    container_name: eduprep-qbank-service
+    ports:
+      - "3002:3002"
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3002
+      DATABASE_URL: mongodb://admin:password123@mongodb:27017/eduprep_qbank?authSource=admin
+      REDIS_URL: redis://redis:6379
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      AUTH_SERVICE_URL: http://auth-service:3001
+      SERVICE_NAME: qbank-service
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - eduprep-network
+    restart: unless-stopped
+
+  # Test Engine Service
+  test-engine-service:
+    build:
+      context: ./services/test-engine-service
+      dockerfile: Dockerfile
+    container_name: eduprep-test-engine-service
+    ports:
+      - "3003:3003"
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3003
+      DATABASE_URL: mongodb://admin:password123@mongodb:27017/eduprep_tests?authSource=admin
+      REDIS_URL: redis://redis:6379
+      QBANK_SERVICE_URL: http://qbank-service:3002
+      AUTH_SERVICE_URL: http://auth-service:3001
+      SERVICE_NAME: test-engine-service
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - eduprep-network
+    restart: unless-stopped
+
+  # Analytics Service
+  analytics-service:
+    build:
+      context: ./services/analytics-service
+      dockerfile: Dockerfile
+    container_name: eduprep-analytics-service
+    ports:
+      - "3004:3004"
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3004
+      DATABASE_URL: mongodb://admin:password123@mongodb:27017/eduprep_analytics?authSource=admin
+      REDIS_URL: redis://redis:6379
+      AUTH_SERVICE_URL: http://auth-service:3001
+      SERVICE_NAME: analytics-service
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - eduprep-network
+    restart: unless-stopped
+
+  # Payment Service
+  payment-service:
+    build:
+      context: ./services/payment-service
+      dockerfile: Dockerfile
+    container_name: eduprep-payment-service
+    ports:
+      - "3005:3005"
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3005
+      DATABASE_URL: mongodb://admin:password123@mongodb:27017/eduprep_payment?authSource=admin
+      REDIS_URL: redis://redis:6379
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_test_}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      AUTH_SERVICE_URL: http://auth-service:3001
+      SERVICE_NAME: payment-service
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - eduprep-network
+    restart: unless-stopped
+
+  # Content Service (Past Papers & Books)
+  content-service:
+    build:
+      context: ./services/content-service
+      dockerfile: Dockerfile
+    container_name: eduprep-content-service
+    ports:
+      - "3006:3005"
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3005
+      MONGODB_URI: mongodb://admin:password123@mongodb:27017/eduprep_content?authSource=admin
+      REDIS_URL: redis://redis:6379
+      AUTH_SERVICE_URL: http://auth-service:3001
+      SERVICE_NAME: content-service
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    networks:
+      - eduprep-network
+    restart: unless-stopped
+
+  # Frontend Client
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: eduprep-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+      NEXT_PUBLIC_QBANK_URL: http://localhost:3002
+      NEXT_PUBLIC_TEST_ENGINE_URL: http://localhost:3003
+      NEXT_PUBLIC_ANALYTICS_URL: http://localhost:3004
+      NEXT_PUBLIC_PAYMENT_URL: http://localhost:3005
+      NEXT_PUBLIC_CONTENT_URL: http://localhost:3006
+    depends_on:
+      - auth-service
+      - qbank-service
+      - test-engine-service
+      - analytics-service
+      - payment-service
+      - content-service
+    networks:
+      - eduprep-network
+    restart: unless-stopped
+
+  # API Gateway (optional - for production)
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: eduprep-gateway
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf
+  #   depends_on:
+  #     - auth-service
+  #     - qbank-service
+  #     - test-engine-service
+  #     - analytics-service
+  #     - payment-service
+  #   networks:
+  #     - eduprep-network
+
+volumes:
+  mongodb_data:
+  mongodb_config:
+  redis_data:
+  elasticsearch_data:
+
+networks:
+  eduprep-network:
+    driver: bridge

@@ -1,0 +1,908 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: eduprep
+  labels:
+    name: eduprep
+
+---
+# ConfigMap for shared configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: eduprep-config
+  namespace: eduprep
+data:
+  NODE_ENV: "production"
+  MONGODB_DATABASE: "eduprep"
+  REDIS_PORT: "6379"
+  JWT_EXPIRY: "24h"
+  REFRESH_TOKEN_EXPIRY: "7d"
+
+---
+# Secret for sensitive data
+apiVersion: v1
+kind: Secret
+metadata:
+  name: eduprep-secrets
+  namespace: eduprep
+type: Opaque
+stringData:
+  JWT_SECRET: "your-jwt-secret-key-here"
+  REFRESH_TOKEN_SECRET: "your-refresh-token-secret-here"
+  STRIPE_SECRET_KEY: "sk_live_your_stripe_secret"
+  STRIPE_WEBHOOK_SECRET: "whsec_your_webhook_secret"
+  MONGODB_USER: "admin"
+  MONGODB_PASSWORD: "your-secure-password"
+
+---
+# MongoDB StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb
+  namespace: eduprep
+spec:
+  serviceName: mongodb
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+        - name: mongodb
+          image: mongo:6.0-alpine
+          ports:
+            - containerPort: 27017
+              name: mongodb
+          env:
+            - name: MONGO_INITDB_ROOT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: eduprep-secrets
+                  key: MONGODB_USER
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: eduprep-secrets
+                  key: MONGODB_PASSWORD
+            - name: MONGO_INITDB_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: eduprep-config
+                  key: MONGODB_DATABASE
+          volumeMounts:
+            - name: mongodb-storage
+              mountPath: /data/db
+          livenessProbe:
+            exec:
+              command:
+                - mongo
+                - --eval
+                - "db.adminCommand('ping')"
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - mongo
+                - --eval
+                - "db.adminCommand('ping')"
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+  volumeClaimTemplates:
+    - metadata:
+        name: mongodb-storage
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+
+---
+# MongoDB Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  namespace: eduprep
+  labels:
+    app: mongodb
+spec:
+  ports:
+    - port: 27017
+      targetPort: 27017
+  clusterIP: None
+  selector:
+    app: mongodb
+
+---
+# Redis Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: eduprep
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+          command:
+            - redis-server
+            - "--appendonly"
+            - "yes"
+          volumeMounts:
+            - name: redis-storage
+              mountPath: /data
+          livenessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+      volumes:
+        - name: redis-storage
+          emptyDir: {}
+
+---
+# Redis Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: eduprep
+  labels:
+    app: redis
+spec:
+  ports:
+    - port: 6379
+      targetPort: 6379
+  selector:
+    app: redis
+
+---
+# Auth Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: eduprep
+  labels:
+    app: auth-service
+    version: v1
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+        version: v1
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - auth-service
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: auth-service
+          image: eduprep/auth-service:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3001
+              name: http
+          env:
+            - name: NODE_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: eduprep-config
+                  key: NODE_ENV
+            - name: PORT
+              value: "3001"
+            - name: MONGODB_URI
+              value: "mongodb://$(MONGODB_USER):$(MONGODB_PASSWORD)@mongodb:27017/eduprep"
+            - name: REDIS_URL
+              value: "redis://redis:6379"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: eduprep-secrets
+                  key: JWT_SECRET
+            - name: JWT_EXPIRY
+              valueFrom:
+                configMapKeyRef:
+                  name: eduprep-config
+                  key: JWT_EXPIRY
+            - name: REFRESH_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: eduprep-secrets
+                  key: REFRESH_TOKEN_SECRET
+            - name: REFRESH_TOKEN_EXPIRY
+              valueFrom:
+                configMapKeyRef:
+                  name: eduprep-config
+                  key: REFRESH_TOKEN_EXPIRY
+            - name: MONGODB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: eduprep-secrets
+                  key: MONGODB_USER
+            - name: MONGODB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: eduprep-secrets
+                  key: MONGODB_PASSWORD
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+---
+# Auth Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: eduprep
+  labels:
+    app: auth-service
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3001
+      targetPort: 3001
+      protocol: TCP
+      name: http
+  selector:
+    app: auth-service
+
+---
+# QBank Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qbank-service
+  namespace: eduprep
+  labels:
+    app: qbank-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: qbank-service
+  template:
+    metadata:
+      labels:
+        app: qbank-service
+    spec:
+      containers:
+        - name: qbank-service
+          image: eduprep/qbank-service:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3002
+          env:
+            - name: NODE_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: eduprep-config
+                  key: NODE_ENV
+            - name: PORT
+              value: "3002"
+            - name: MONGODB_URI
+              value: "mongodb://$(MONGODB_USER):$(MONGODB_PASSWORD)@mongodb:27017/eduprep"
+            - name: REDIS_URL
+              value: "redis://redis:6379"
+            - name: AUTH_SERVICE_URL
+              value: "http://auth-service:3001"
+            - name: MONGODB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: eduprep-secrets
+                  key: MONGODB_USER
+            - name: MONGODB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: eduprep-secrets
+                  key: MONGODB_PASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: eduprep-secrets
+                  key: JWT_SECRET
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3002
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3002
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+---
+# QBank Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: qbank-service
+  namespace: eduprep
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3002
+      targetPort: 3002
+  selector:
+    app: qbank-service
+
+---
+# Test Engine Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-engine-service
+  namespace: eduprep
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: test-engine-service
+  template:
+    metadata:
+      labels:
+        app: test-engine-service
+    spec:
+      containers:
+        - name: test-engine-service
+          image: eduprep/test-engine-service:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3003
+          env:
+            - name: NODE_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: eduprep-config
+                  key: NODE_ENV
+            - name: PORT
+              value: "3003"
+            - name: MONGODB_URI
+              value: "mongodb://$(MONGODB_USER):$(MONGODB_PASSWORD)@mongodb:27017/eduprep"
+            - name: REDIS_URL
+              value: "redis://redis:6379"
+            - name: QBANK_SERVICE_URL
+              value: "http://qbank-service:3002"
+            - name: AUTH_SERVICE_URL
+              value: "http://auth-service:3001"
+            - name: MONGODB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: eduprep-secrets
+                  key: MONGODB_USER
+            - name: MONGODB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: eduprep-secrets
+                  key: MONGODB_PASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: eduprep-secrets
+                  key: JWT_SECRET
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3003
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3003
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+---
+# Test Engine Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-engine-service
+  namespace: eduprep
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3003
+      targetPort: 3003
+  selector:
+    app: test-engine-service
+
+---
+# Analytics Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analytics-service
+  namespace: eduprep
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: analytics-service
+  template:
+    metadata:
+      labels:
+        app: analytics-service
+    spec:
+      containers:
+        - name: analytics-service
+          image: eduprep/analytics-service:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3004
+          env:
+            - name: NODE_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: eduprep-config
+                  key: NODE_ENV
+            - name: PORT
+              value: "3004"
+            - name: MONGODB_URI
+              value: "mongodb://$(MONGODB_USER):$(MONGODB_PASSWORD)@mongodb:27017/eduprep"
+            - name: REDIS_URL
+              value: "redis://redis:6379"
+            - name: AUTH_SERVICE_URL
+              value: "http://auth-service:3001"
+            - name: TEST_ENGINE_URL
+              value: "http://test-engine-service:3003"
+            - name: MONGODB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: eduprep-secrets
+                  key: MONGODB_USER
+            - name: MONGODB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: eduprep-secrets
+                  key: MONGODB_PASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: eduprep-secrets
+                  key: JWT_SECRET
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3004
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3004
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+---
+# Analytics Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: analytics-service
+  namespace: eduprep
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3004
+      targetPort: 3004
+  selector:
+    app: analytics-service
+
+---
+# Payment Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  namespace: eduprep
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+    spec:
+      containers:
+        - name: payment-service
+          image: eduprep/payment-service:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3005
+          env:
+            - name: NODE_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: eduprep-config
+                  key: NODE_ENV
+            - name: PORT
+              value: "3005"
+            - name: MONGODB_URI
+              value: "mongodb://$(MONGODB_USER):$(MONGODB_PASSWORD)@mongodb:27017/eduprep"
+            - name: REDIS_URL
+              value: "redis://redis:6379"
+            - name: AUTH_SERVICE_URL
+              value: "http://auth-service:3001"
+            - name: STRIPE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: eduprep-secrets
+                  key: STRIPE_SECRET_KEY
+            - name: STRIPE_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: eduprep-secrets
+                  key: STRIPE_WEBHOOK_SECRET
+            - name: MONGODB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: eduprep-secrets
+                  key: MONGODB_USER
+            - name: MONGODB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: eduprep-secrets
+                  key: MONGODB_PASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: eduprep-secrets
+                  key: JWT_SECRET
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3005
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3005
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+---
+# Payment Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+  namespace: eduprep
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3005
+      targetPort: 3005
+  selector:
+    app: payment-service
+
+---
+# API Gateway Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: eduprep
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - api-gateway
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: api-gateway
+          image: eduprep/api-gateway:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: eduprep-config
+                  key: NODE_ENV
+            - name: PORT
+              value: "3000"
+            - name: AUTH_SERVICE_URL
+              value: "http://auth-service:3001"
+            - name: QBANK_SERVICE_URL
+              value: "http://qbank-service:3002"
+            - name: TEST_ENGINE_URL
+              value: "http://test-engine-service:3003"
+            - name: ANALYTICS_URL
+              value: "http://analytics-service:3004"
+            - name: PAYMENT_URL
+              value: "http://payment-service:3005"
+            - name: CORS_ORIGIN
+              value: "https://eduprep.com"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+---
+# API Gateway Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: eduprep
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+      name: http
+  selector:
+    app: api-gateway
+
+---
+# Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: eduprep-ingress
+  namespace: eduprep
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - eduprep.com
+        - api.eduprep.com
+      secretName: eduprep-tls
+  rules:
+    - host: eduprep.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 3000
+    - host: api.eduprep.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 3000
+
+---
+# HPA for Auth Service
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: auth-service-hpa
+  namespace: eduprep
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: auth-service
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+---
+# HPA for API Gateway
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api-gateway-hpa
+  namespace: eduprep
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-gateway
+  minReplicas: 2
+  maxReplicas: 15
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 75
+
+---
+# NetworkPolicy for service isolation
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: eduprep-network-policy
+  namespace: eduprep
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: eduprep
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: eduprep
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 53
