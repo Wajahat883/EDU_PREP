@@ -17,6 +17,7 @@
   "devDependencies": {
     "@types/express": "^4.17.20",
     "@types/node": "^20.0.0",
+    "rimraf": "^4.4.1",
     "typescript": "^5.2.0",
     "ts-node-dev": "^2.0.0"
   },
@@ -24,4 +25,3 @@
     "node": "20.x"
   }
 }
-
