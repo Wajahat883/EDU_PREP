@@ -75,10 +75,10 @@ export const LoginForm: React.FC = () => {
 
           <button
             type="submit"
-            disabled={loginMutation.isLoading}
+            disabled={loginMutation.isPending}
             className="btn-primary w-full"
           >
-            {loginMutation.isLoading ? "Logging in..." : "Login"}
+            {loginMutation.isPending ? "Logging in..." : "Login"}
           </button>
         </form>
 
