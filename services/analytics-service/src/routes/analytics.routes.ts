@@ -3,9 +3,9 @@
  * Provides comprehensive analytics endpoints for dashboard
  */
 
-import express, { Router, Request, Response } from "express";
+import express, { Router, Response } from "express";
 import { Document } from "mongodb";
-import { authenticateToken } from "../middleware/auth";
+import { authenticateToken, AuthRequest } from "../middleware/auth";
 import { validateObjectId } from "../middleware/validation";
 import UserAnalytics from "../models/UserAnalytics";
 import PerformanceMetricsService from "../services/performance-metrics.service";
@@ -22,7 +22,7 @@ router.get(
   "/:userId/summary",
   authenticateToken,
   validateObjectId("userId"),
-  async (req: Request, res: Response) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const { userId } = req.params;
 
@@ -63,7 +63,7 @@ router.get(
   "/:userId/performance",
   authenticateToken,
   validateObjectId("userId"),
-  async (req: Request, res: Response) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const { userId } = req.params;
       const { mode, examType } = req.query;
@@ -121,7 +121,7 @@ router.get(
   "/:userId/trends",
   authenticateToken,
   validateObjectId("userId"),
-  async (req: Request, res: Response) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const { userId } = req.params;
 
@@ -176,7 +176,7 @@ router.get(
   "/:userId/predictions",
   authenticateToken,
   validateObjectId("userId"),
-  async (req: Request, res: Response) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const { userId } = req.params;
       const { targetScore } = req.query;
@@ -250,7 +250,7 @@ router.get(
   "/:userId/recommendations",
   authenticateToken,
   validateObjectId("userId"),
-  async (req: Request, res: Response) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const { userId } = req.params;
 
@@ -298,11 +298,7 @@ router.get(
           reason: "Based on your current performance and exam count",
         },
         trendInsights: trendReport.recommendations,
-        nextSteps: this.generateNextSteps(
-          metricsAnalytics,
-          weakAreas,
-          studyTime,
-        ),
+        nextSteps: generateNextSteps(metricsAnalytics, weakAreas, studyTime),
       };
 
       return res.json({
@@ -325,7 +321,7 @@ router.get(
   "/:userId/comparison",
   authenticateToken,
   validateObjectId("userId"),
-  async (req: Request, res: Response) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const { userId } = req.params;
 
@@ -405,7 +401,7 @@ router.post(
   "/:userId/sync",
   authenticateToken,
   validateObjectId("userId"),
-  async (req: Request, res: Response) => {
+  async (req: AuthRequest, res: Response) => {
     try {
       const { userId } = req.params;
       const { examResult } = req.body;

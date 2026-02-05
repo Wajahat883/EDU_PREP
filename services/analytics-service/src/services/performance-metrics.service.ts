@@ -229,10 +229,11 @@ export class PerformanceMetricsService {
         : 0;
 
     // Calculate study streak (consecutive days with activity)
-    const studyStreak = this.calculateStudyStreak(history);
+    const studyStreak = PerformanceMetricsService.calculateStudyStreak(history);
 
     // Recommended study time (based on improvement needs)
-    const recommendedDailyTime = this.calculateRecommendedStudyTime(analytics);
+    const recommendedDailyTime =
+      PerformanceMetricsService.calculateRecommendedStudyTime(analytics);
 
     return {
       totalStudyTime: analytics.totalStudyTime || 0,
@@ -246,7 +247,7 @@ export class PerformanceMetricsService {
   /**
    * Calculate study streak
    */
-  private static calculateStudyStreak(history: any[]): number {
+  static calculateStudyStreak(history: any[]): number {
     if (history.length === 0) return 0;
 
     const sortedByDate = history.sort(
@@ -277,7 +278,7 @@ export class PerformanceMetricsService {
   /**
    * Calculate recommended daily study time
    */
-  private static calculateRecommendedStudyTime(analytics: any): number {
+  static calculateRecommendedStudyTime(analytics: any): number {
     const averageScore = analytics.averageScore || 0;
     const totalExams = analytics.totalExamsAttempted || 0;
 
