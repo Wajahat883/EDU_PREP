@@ -44,22 +44,28 @@ export const useRegister = () => {
 };
 
 export const useCurrentUser = () => {
-  return useQuery("currentUser", () => apiClient.get("/api/auth/me"), {
+  return useQuery({
+    queryKey: ["currentUser"],
+    queryFn: () => apiClient.get("/api/auth/me"),
     enabled: !!localStorage.getItem("accessToken"),
   });
 };
 
 // API hooks for Questions
 export const useQuestions = (filters?: any) => {
-  return useQuery(["questions", filters], () =>
-    apiClient.get("/api/questions", { params: filters }),
-  );
+  return useQuery({
+    queryKey: ["questions", filters],
+    queryFn: () =>
+      apiClient.get("/api/questions", { params: filters }),
+  });
 };
 
 export const useQuestion = (questionId: string) => {
-  return useQuery(["question", questionId], () =>
-    apiClient.get(`/api/questions/${questionId}`),
-  );
+  return useQuery({
+    queryKey: ["question", questionId],
+    queryFn: () =>
+      apiClient.get(`/api/questions/${questionId}`),
+  });
 };
 
 // API hooks for Tests
@@ -85,20 +91,27 @@ export const useCompleteSession = () => {
 
 // API hooks for Analytics
 export const useProgressSummary = () => {
-  return useQuery("progressSummary", () =>
-    apiClient.get("/api/progress/summary"),
-  );
+  return useQuery({
+    queryKey: ["progressSummary"],
+    queryFn: () =>
+      apiClient.get("/api/progress/summary"),
+  });
 };
 
 export const useProgressTrends = () => {
-  return useQuery("progressTrends", () =>
-    apiClient.get("/api/progress/trends"),
-  );
+  return useQuery({
+    queryKey: ["progressTrends"],
+    queryFn: () =>
+      apiClient.get("/api/progress/trends"),
+  });
 };
 
 // API hooks for Payments
 export const usePlans = () => {
-  return useQuery("plans", () => apiClient.get("/api/plans"));
+  return useQuery({
+    queryKey: ["plans"],
+    queryFn: () => apiClient.get("/api/plans"),
+  });
 };
 
 export const useCheckout = () => {
